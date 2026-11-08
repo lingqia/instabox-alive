@@ -1,0 +1,22 @@
+[Unit]
+Description=InstaBox machine keep-alive (lease renewal + 6h proactive restart)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Put INSTABOX_API_KEY and INSTABOX_MACHINE in this file (chmod 600):
+#   INSTABOX_API_KEY=ibk_xxx
+#   INSTABOX_MACHINE=mch_xxx
+EnvironmentFile=-/etc/instabox-keepalive.env
+ExecStart=/usr/local/bin/keepalive
+Restart=always
+RestartSec=10
+# The key is only read from the environment; do not put it on the command line.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

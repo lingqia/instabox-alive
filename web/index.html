@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InstaBox Keep-alive</title>
+<style>
+  /* ============ StyleKit · Notion Style v1.0.0 tokens ============ */
+  :root {
+    --color-ink: #37352f;
+    --color-paper: #f7f6f3;
+    --color-page: #ffffff;
+    --color-hover-grey: #efedea;
+    --color-active-grey: #e3e1db;
+    --color-hairline: #e9e7e4;
+    --color-link-blue: #2eaadc;
+    --color-link-blue-hover: #26a0cf;
+    --color-marker-red: #eb5757;
+    --color-green: #0f7b6c;
+    --color-yellow: #dfab01;
+    --color-text-gray: #9b9a97;
+    --color-code-bg: rgba(135, 131, 120, 0.15);
+
+    --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif;
+    --font-mono: SFMono-Regular, Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace;
+
+    --text-heading: 24px;  --leading-heading: 1.3;
+    --text-subheading: 20px; --leading-subheading: 1.4;
+    --text-body-lg: 16px;  --leading-body-lg: 1.6;
+    --text-body: 14px;     --leading-body: 1.6;
+    --text-label: 12px;    --leading-label: 1.4;    --tracking-label: 0.02em;
+
+    --w-regular: 400; --w-medium: 500; --w-semibold: 600;
+
+    --spacing-4: 4px; --spacing-8: 8px; --spacing-12: 12px; --spacing-16: 16px;
+    --spacing-24: 24px; --spacing-32: 32px; --spacing-48: 48px;
+
+    --page-max-width: 708px;
+    --sidebar-width: 240px;
+    --topbar-height: 56px;
+    --card-padding: 16px;
+    --radius: 4px;
+    --radius-pill: 999px;
+  }
+  html[data-theme="dark"] {
+    --color-ink: #d4d4d4;
+    --color-paper: #191919;
+    --color-page: #202020;
+    --color-hover-grey: #2f2f2f;
+    --color-active-grey: #383838;
+    --color-hairline: #373737;
+    --color-link-blue: #529cca;
+    --color-link-blue-hover: #63a8d2;
+    --color-marker-red: #eb8078;
+    --color-green: #4dab9a;
+    --color-yellow: #dfab01;
+    --color-text-gray: #9b9b9b;
+    --color-code-bg: rgba(255, 255, 255, 0.06);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--color-paper); color: var(--color-ink);
+    font: var(--w-regular) var(--text-body)/var(--leading-body) var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: rgba(46, 170, 220, 0.25); }
+
+  /* ================= 厂字型结构 =================
+     顶栏通栏（横）＋ 左侧栏（竖）＋ 右侧正文        */
+
+  /* ---------- topbar（厂的横） ---------- */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; height: var(--topbar-height); z-index: 20;
+    display: flex; align-items: center; gap: var(--spacing-12);
+    padding: 0 var(--spacing-16); background: var(--color-paper);
+    border-bottom: 1px solid var(--color-hairline);
+  }
+  .topbar .brand { display: flex; align-items: center; gap: var(--spacing-8); }
+  .topbar .logo {
+    width: 24px; height: 24px; border-radius: var(--radius); background: var(--color-hover-grey);
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  .topbar h1 { font: var(--w-semibold) var(--text-body-lg)/var(--leading-body-lg) var(--font-sans); margin: 0; }
+  .topbar .grow { flex: 1; }
+  .topbar .global { color: var(--color-text-gray); font-size: var(--text-label); letter-spacing: var(--tracking-label); }
+
+  /* ---------- sidebar（厂的竖） ---------- */
+  .sidebar {
+    position: fixed; top: var(--topbar-height); bottom: 0; left: 0; width: var(--sidebar-width); z-index: 10;
+    background: var(--color-paper); border-right: 1px solid var(--color-hairline);
+    padding: var(--spacing-12) var(--spacing-8); overflow-y: auto;
+    display: flex; flex-direction: column;
+  }
+  .side-label {
+    font: var(--w-medium) var(--text-label)/var(--leading-label) var(--font-sans);
+    letter-spacing: var(--tracking-label); color: var(--color-text-gray);
+    padding: var(--spacing-4) var(--spacing-8); margin-top: var(--spacing-8);
+    text-transform: uppercase;
+  }
+
+  /* Block Row：透明底、4px 圆角、padding 4px 8px、hover 只变背景 150ms、无位移 */
+  .block-row {
+    display: flex; align-items: center; gap: var(--spacing-8);
+    padding: 4px 8px; border-radius: var(--radius); cursor: pointer;
+    color: var(--color-ink); font-size: var(--text-body); line-height: var(--leading-body);
+    text-decoration: none; border: none; background: transparent; width: 100%; text-align: left;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .block-row:hover { background: var(--color-hover-grey); }
+  .block-row:active { background: var(--color-active-grey); }
+  .block-row .handle {
+    width: 16px; flex: none; display: flex; align-items: center; justify-content: center;
+  }
+  .block-row .dot {
+    width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--color-text-gray); opacity: 0.55;
+    transition: opacity 150ms ease, background-color 150ms ease;
+  }
+  .block-row:hover .dot { opacity: 1; }
+  .block-row .dot.running { background: var(--color-green); }
+  .block-row .dot.suspended { background: var(--color-yellow); }
+  .block-row .dot.stopped, .block-row .dot.unknown { background: var(--color-text-gray); }
+  .block-row .dot.error, .block-row .dot.deleted { background: var(--color-marker-red); }
+  .block-row .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .block-row .meta { color: var(--color-text-gray); font-size: var(--text-label); letter-spacing: var(--tracking-label); }
+
+  .side-divider { border: none; border-top: 1px solid var(--color-hairline); margin: var(--spacing-12) var(--spacing-8); }
+  .side-foot { margin-top: auto; padding: var(--spacing-8); color: var(--color-text-gray); font-size: var(--text-label); letter-spacing: var(--tracking-label); line-height: 1.8; }
+
+  /* ---------- content（正文 708px，左对齐） ---------- */
+  .content {
+    margin-left: var(--sidebar-width); padding: calc(var(--topbar-height) + var(--spacing-32)) var(--spacing-24) 96px;
+  }
+  .inner { max-width: var(--page-max-width); }
+
+  /* ---------- buttons (Ghost Button spec) ---------- */
+  .btn {
+    font: var(--w-medium) 13px/1.4 var(--font-sans); padding: 4px 8px; border-radius: var(--radius);
+    border: none; background: transparent; color: var(--color-ink); cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .btn:hover { background: var(--color-hover-grey); }
+  .btn:active { background: var(--color-active-grey); }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .btn.primary { background: var(--color-link-blue); color: #ffffff; padding: 6px 12px; }
+  .btn.primary:hover, .btn.primary:active { background: var(--color-link-blue-hover); }
+  .nav-toggle { display: none; }
+
+  /* ---------- cards (White Page surface, hairline, 4px) ---------- */
+  .card {
+    background: var(--color-page); border: 1px solid var(--color-hairline);
+    border-radius: var(--radius); padding: var(--card-padding); margin-bottom: var(--spacing-12);
+  }
+  .section-title {
+    font: var(--w-medium) var(--text-subheading)/var(--leading-subheading) var(--font-sans);
+    margin: 0 0 var(--spacing-16);
+  }
+  .section { margin-bottom: var(--spacing-48); }
+  .section:last-child { margin-bottom: 0; }
+  .row-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-12); }
+
+  /* ---------- machine card ---------- */
+  .mhead { display: flex; align-items: center; gap: var(--spacing-8); margin-bottom: var(--spacing-12); }
+  .mhead .handle {
+    width: 16px; align-self: stretch; opacity: 0; border-radius: 2px;
+    background: repeating-linear-gradient(to bottom, var(--color-text-gray) 0 2px, transparent 2px 5px);
+    transition: opacity 150ms ease;
+  }
+  .card:hover .mhead .handle { opacity: 0.5; }
+  .mtitle { font: var(--w-semibold) var(--text-body-lg)/var(--leading-body-lg) var(--font-sans); }
+  .mid { margin-left: auto; color: var(--color-text-gray); font: var(--text-label)/var(--leading-label) var(--font-mono); }
+
+  .pill {
+    font: var(--w-medium) var(--text-label)/var(--leading-label) var(--font-sans);
+    letter-spacing: var(--tracking-label); padding: 2px 10px; border-radius: var(--radius-pill);
+    border: 1px solid var(--color-hairline); color: var(--color-text-gray);
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .pill.running { color: var(--color-green); border-color: transparent; background: rgba(15, 123, 108, 0.10); }
+  html[data-theme="dark"] .pill.running { background: rgba(77, 171, 154, 0.14); }
+  .pill.suspended { color: var(--color-yellow); border-color: transparent; background: rgba(223, 171, 1, 0.12); }
+  .pill.stopped, .pill.unknown { color: var(--color-text-gray); background: var(--color-hover-grey); border-color: transparent; }
+  .pill.error, .pill.deleted { color: var(--color-marker-red); border-color: transparent; background: rgba(235, 87, 87, 0.10); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--spacing-12) var(--spacing-16); margin-bottom: var(--spacing-16); }
+  .stat .label {
+    font: var(--w-medium) var(--text-label)/var(--leading-label) var(--font-sans);
+    letter-spacing: var(--tracking-label); color: var(--color-text-gray); margin-bottom: 2px;
+  }
+  .stat .value { font-size: var(--text-body); }
+  .stat .value.mono { font-family: var(--font-mono); font-size: 13px; }
+
+  .bar-row { margin-bottom: var(--spacing-12); }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;
+    font: var(--w-medium) var(--text-label)/var(--leading-label) var(--font-sans); letter-spacing: var(--tracking-label); color: var(--color-text-gray); }
+  .bar-label .right { font-variant-numeric: tabular-nums; }
+  .bar { height: 6px; border-radius: var(--radius-pill); background: var(--color-hairline); overflow: hidden; }
+  .bar-fill { height: 100%; width: 0; border-radius: var(--radius-pill); background: var(--color-link-blue);
+    transition: width 500ms ease, background-color 150ms ease; }
+  .bar-fill.warn { background: var(--color-yellow); }
+  .bar-fill.danger { background: var(--color-marker-red); }
+
+  .actions { display: flex; align-items: center; gap: var(--spacing-8); flex-wrap: wrap; margin-top: var(--spacing-16); }
+  .action-result { font-size: 13px; color: var(--color-text-gray); }
+  .action-result.ok { color: var(--color-green); }
+  .action-result.fail { color: var(--color-marker-red); }
+
+  /* ---------- callout block ---------- */
+  .callout {
+    display: flex; gap: var(--spacing-8); background: var(--color-hover-grey);
+    border-radius: var(--radius); padding: 12px 16px; margin-top: var(--spacing-12);
+    font-size: var(--text-body); line-height: var(--leading-body);
+  }
+  .callout .icon { width: 8px; flex: none; padding-top: 8px; }
+  .callout.warn .body { color: var(--color-yellow); }
+  .callout.error .body { color: var(--color-marker-red); }
+  .callout .body { color: var(--color-ink); }
+
+  /* Inline Input：透明底、无描边、padding 4px 8px、聚焦只加 1px 底边线 */
+  .inline-input {
+    background: transparent; border: none; border-bottom: 1px solid transparent;
+    padding: 4px 8px; font: var(--w-regular) var(--text-body)/var(--leading-body) var(--font-sans);
+    color: var(--color-ink); border-radius: var(--radius); outline: none; width: 100%;
+    transition: border-color 150ms ease, background-color 150ms ease;
+  }
+  .inline-input:focus { border-bottom: 1px solid var(--color-hairline); }
+  .inline-input::placeholder { color: var(--color-text-gray); opacity: 0.6; }
+  .key-form { display: flex; gap: var(--spacing-8); align-items: center; margin-top: var(--spacing-12); flex-wrap: wrap; }
+  .key-form .inline-input { width: auto; flex: 1; min-width: 140px; }
+  .key-row {
+    display: flex; align-items: center; gap: var(--spacing-8); padding: 4px 8px;
+    border-radius: var(--radius); transition: background-color 150ms ease;
+  }
+  .key-row:hover { background: var(--color-hover-grey); }
+  .key-row .kname { font-weight: var(--w-medium); }
+  .key-row .kmask { font-family: var(--font-mono); font-size: 13px; color: var(--color-text-gray); }
+  .key-row .kcount { margin-left: auto; color: var(--color-text-gray); font-size: var(--text-label); letter-spacing: var(--tracking-label); }
+  .key-note { color: var(--color-text-gray); font-size: var(--text-label); letter-spacing: var(--tracking-label); margin-top: var(--spacing-8); }
+
+  /* ---------- log (notion-code) ---------- */
+  .log {
+    background: var(--color-code-bg); border-radius: var(--radius); padding: 12px 16px;
+    height: 320px; overflow-y: auto;
+    font-family: var(--font-mono); font-size: 85%; line-height: 1.7;
+  }
+  .log .line { white-space: pre-wrap; word-break: break-all; }
+  .log .ts { color: var(--color-text-gray); }
+  .log .lv { font-weight: var(--w-semibold); }
+  .log .lv-debug { color: var(--color-text-gray); }
+  .log .lv-info { color: var(--color-link-blue); }
+  .log .lv-warn { color: var(--color-yellow); }
+  .log .lv-error { color: var(--color-marker-red); }
+
+  /* ---------- links & banner ---------- */
+  a.notion-link {
+    color: var(--color-ink); text-decoration: underline;
+    text-decoration-color: rgba(55, 53, 47, 0.4); text-underline-offset: 2px;
+    transition: text-decoration-color 150ms ease;
+  }
+  a.notion-link:hover { text-decoration-color: var(--color-ink); }
+  html[data-theme="dark"] a.notion-link { text-decoration-color: rgba(212, 212, 212, 0.4); }
+  html[data-theme="dark"] a.notion-link:hover { text-decoration-color: var(--color-ink); }
+
+  .banner {
+    display: none; background: var(--color-hover-grey); border: 1px solid var(--color-hairline);
+    border-radius: var(--radius); padding: 12px 16px; margin-bottom: var(--spacing-24);
+    color: var(--color-marker-red); font-size: var(--text-body);
+  }
+  .banner.show { display: block; }
+
+  footer.foot { margin-top: var(--spacing-48); color: var(--color-text-gray); font-size: var(--text-label);
+    letter-spacing: var(--tracking-label); line-height: 1.8; }
+
+  /* ---------- responsive：小屏收起侧栏 ---------- */
+  @media (max-width: 860px) {
+    .nav-toggle { display: inline-flex; }
+    .sidebar { display: none; }
+    body.nav-open .sidebar { display: flex; }
+    .content { margin-left: 0; }
+    .topbar .global { display: none; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- 顶栏：厂字的横 -->
+  <header class="topbar">
+    <button class="btn nav-toggle" id="nav-toggle" title="机器列表">☰</button>
+    <div class="brand">
+      <div class="logo">📦</div>
+      <h1>InstaBox Keep-alive</h1>
+    </div>
+    <div class="grow"></div>
+    <div class="global" id="global-line">连接中…</div>
+    <button class="btn" id="theme-toggle" title="切换浅色 / 深色主题">🌓 主题</button>
+  </header>
+
+  <!-- 侧栏：厂字的竖 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="side-label">机器</div>
+    <div id="side-machines"></div>
+    <hr class="side-divider">
+    <div class="side-label">导航</div>
+    <a class="block-row" href="#section-machines"><span class="handle"><span class="dot"></span></span><span class="name">机器详情</span></a>
+    <a class="block-row" href="#section-keys"><span class="handle"><span class="dot"></span></span><span class="name">密钥</span></a>
+    <a class="block-row" href="#section-log"><span class="handle"><span class="dot"></span></span><span class="name">日志</span></a>
+    <hr class="side-divider">
+    <a class="block-row" href="https://instabox.sh/docs" target="_blank" rel="noreferrer"><span class="handle"><span class="dot"></span></span><span class="name">InstaBox 文档</span><span class="meta">↗</span></a>
+    <a class="block-row" href="https://www.stylekit.top/zh/styles/notion-style" target="_blank" rel="noreferrer"><span class="handle"><span class="dot"></span></span><span class="name">StyleKit · Notion</span><span class="meta">↗</span></a>
+    <div class="side-foot" id="side-foot">instabox-keepalive<br>仅使用官方 API</div>
+  </aside>
+
+  <!-- 正文 -->
+  <main class="content">
+    <div class="inner">
+
+      <div class="banner" id="banner"></div>
+
+      <section class="section" id="section-machines">
+        <h2 class="section-title">机器</h2>
+        <div id="machines"></div>
+      </section>
+
+      <section class="section" id="section-keys">
+        <h2 class="section-title">密钥</h2>
+        <div class="card">
+          <div id="key-list"></div>
+          <div class="key-form">
+            <input class="inline-input" id="key-name" placeholder="名称（可选，如：主账号）">
+            <input class="inline-input" id="key-secret" placeholder="ibk_ 开头的 API key" spellcheck="false" autocomplete="off">
+            <button class="btn primary" id="key-add">添加密钥</button>
+            <span class="action-result" id="key-result"></span>
+          </div>
+          <div class="key-note">密钥只保存在服务器本地（keepalive-keys.json，权限 0600），前端只显示掩码；每个 key 对应一个工作区，添加后自动发现该工作区的全部机器。</div>
+        </div>
+      </section>
+
+      <section class="section" id="section-log">
+        <div class="row-head">
+          <h2 class="section-title" style="margin:0">日志</h2>
+          <button class="btn" id="log-pause">暂停滚动</button>
+        </div>
+        <div class="log" id="log"></div>
+      </section>
+
+      <footer class="foot">
+        instabox-keepalive · 仅使用官方 API（<a class="notion-link" href="https://instabox.sh/docs" target="_blank" rel="noreferrer">instabox.sh/docs</a>）·
+        风格：<a class="notion-link" href="https://www.stylekit.top/zh/styles/notion-style" target="_blank" rel="noreferrer">StyleKit · Notion Style</a><br>
+        免费版规则内的合规保活；规则变化时行为可能失效。这台机器对你重要，请付费支持 InstaBox。
+      </footer>
+    </div>
+  </main>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------- token (optional gate) ---------------- */
+  var params = new URLSearchParams(location.search);
+  var token = params.get("token") || localStorage.getItem("ka-token") || "";
+  if (params.get("token")) localStorage.setItem("ka-token", params.get("token"));
+  function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({}, opts.headers, token ? { "X-Keepalive-Token": token } : {});
+    return fetch(path, opts).then(function (r) { return r.json(); });
+  }
+
+  /* ---------------- theme ---------------- */
+  var root = document.documentElement;
+  var saved = localStorage.getItem("ka-theme");
+  if (saved) root.setAttribute("data-theme", saved);
+  else if (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) root.setAttribute("data-theme", "dark");
+  document.getElementById("theme-toggle").onclick = function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem("ka-theme", next);
+  };
+
+  /* ---------------- sidebar toggle (mobile) ---------------- */
+  document.getElementById("nav-toggle").onclick = function () {
+    document.body.classList.toggle("nav-open");
+  };
+
+  /* ---------------- helpers ---------------- */
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function fmtDur(sec) {
+    if (sec == null || isNaN(sec)) return "–";
+    sec = Math.max(0, Math.round(sec));
+    var d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+    if (d > 0) return d + "天" + h + "小时";
+    if (h > 0) return h + "小时" + (m > 0 ? m + "分" : "");
+    if (m > 0) return m + "分" + (m < 5 && s > 0 ? s + "秒" : "");
+    return s + "秒";
+  }
+  function fmtTime(iso) {
+    if (!iso) return "–";
+    return new Date(iso).toLocaleTimeString("zh-CN", { hour12: false });
+  }
+  function fmtAgo(iso) {
+    if (!iso) return "–";
+    return fmtDur((Date.now() - new Date(iso).getTime()) / 1000) + "前";
+  }
+  function pct(cur, total) {
+    if (!total || total <= 0) return 0;
+    return Math.max(0, Math.min(100, cur / total * 100));
+  }
+  function barClass(p) { return p >= 90 ? " danger" : (p >= 70 ? " warn" : ""); }
+
+  /* ---------------- sidebar machine list (Block Row) ---------------- */
+  var sideSig = "";
+  function renderSidebar(ms) {
+    var sig = ms.map(function (m) { return m.machineId; }).join(",");
+    if (sig !== sideSig) {
+      sideSig = sig;
+      $("side-machines").innerHTML = ms.map(function (m) {
+        return '<button class="block-row" data-goto="card-' + esc(m.machineId) + '">' +
+          '<span class="handle"><span class="dot ' + esc(m.state || "unknown") + '"></span></span>' +
+          '<span class="name">' + esc(m.machineName || m.machineId) + '</span>' +
+          '<span class="meta" data-side-state="' + esc(m.machineId) + '"></span>' +
+          '</button>';
+      }).join("");
+    }
+    ms.forEach(function (m) {
+      var meta = document.querySelector('[data-side-state="' + m.machineId + '"]');
+      if (meta) meta.textContent = (m.state || "") + (m.state === "running" && m.nextRestartInSec != null ? " · " + fmtDur(m.nextRestartInSec) : "");
+      var dot = document.querySelector('[data-goto="card-' + m.machineId + '"] .dot');
+      if (dot) dot.className = "dot " + (m.state || "unknown");
+    });
+  }
+  document.getElementById("side-machines").addEventListener("click", function (ev) {
+    var row = ev.target.closest("button[data-goto]");
+    if (!row) return;
+    var el = document.getElementById(row.getAttribute("data-goto"));
+    if (el) el.scrollIntoView();
+    document.body.classList.remove("nav-open");
+  });
+
+  /* ---------------- machine cards ---------------- */
+  var cardSig = "";
+
+  function cardHtml(m) {
+    return '' +
+      '<div class="card mcard" id="card-' + esc(m.machineId) + '" data-mid="' + esc(m.machineId) + '">' +
+        '<div class="mhead">' +
+          '<div class="handle" title="拖拽手柄"></div>' +
+          '<span class="mtitle"></span>' +
+          '<span class="pill"></span>' +
+          '<span class="mid"></span>' +
+        '</div>' +
+        '<div class="grid">' +
+          '<div class="stat"><div class="label">本次运行时长</div><div class="value" data-f="runage">–</div></div>' +
+          '<div class="stat"><div class="label">max-run 上限</div><div class="value" data-f="maxrun">–</div></div>' +
+          '<div class="stat"><div class="label">租约到期</div><div class="value" data-f="lease">–</div></div>' +
+          '<div class="stat"><div class="label">下次主动重启</div><div class="value" data-f="next">–</div></div>' +
+          '<div class="stat"><div class="label">上次主动重启</div><div class="value" data-f="last">–</div></div>' +
+          '<div class="stat"><div class="label">状态</div><div class="value mono" data-f="state">–</div></div>' +
+        '</div>' +
+        '<div class="bar-row">' +
+          '<div class="bar-label"><span data-f="bl1">主动重启周期</span><span class="right" data-f="bt1">–</span></div>' +
+          '<div class="bar"><div class="bar-fill" data-f="bar1"></div></div>' +
+        '</div>' +
+        '<div class="bar-row">' +
+          '<div class="bar-label"><span>距 max-run 上限</span><span class="right" data-f="bt2">–</span></div>' +
+          '<div class="bar"><div class="bar-fill" data-f="bar2"></div></div>' +
+        '</div>' +
+        '<div class="actions">' +
+          '<button class="btn primary" data-act="keepalive">立即保活</button>' +
+          '<button class="btn" data-act="restart">立即重启</button>' +
+          '<span class="action-result" data-f="result"></span>' +
+        '</div>' +
+        '<div class="callout" data-f="note" style="display:none"><div class="icon"></div><div class="body"></div></div>' +
+      '</div>';
+  }
+
+  function updateCard(m) {
+    var card = root.querySelector('.mcard[data-mid="' + m.machineId + '"]');
+    if (!card) return;
+    function f(name) { return card.querySelector('[data-f="' + name + '"]'); }
+
+    card.querySelector(".mtitle").textContent = m.machineName || m.machineId;
+    var pill = card.querySelector(".pill");
+    pill.textContent = m.state;
+    pill.className = "pill " + (m.state || "unknown");
+    card.querySelector(".mid").textContent = m.machineId + (m.free ? " · free" : "") + (m.keyName ? " · " + m.keyName : "");
+
+    f("runage").textContent = m.runStartedAt ? fmtDur(m.runAgeSec) : "–";
+    f("maxrun").textContent = m.maxRunMinutes > 0 ? (m.maxRunMinutes + " 分钟 · " + fmtDur(m.maxRunMinutes * 60))
+      : (m.maxRunMinutes === -1 ? "无限制" : "已禁用");
+    f("lease").textContent = m.leaseExpiresAt
+      ? (fmtTime(m.leaseExpiresAt) + " · " + fmtDur((new Date(m.leaseExpiresAt) - Date.now()) / 1000))
+      : "未持有";
+    f("next").textContent = m.state === "running" && m.nextRestartInSec != null ? ("还剩 " + fmtDur(m.nextRestartInSec)) : "–";
+    f("last").textContent = m.lastRestartAt ? fmtAgo(m.lastRestartAt) : "从未";
+    f("state").textContent = m.state + (m.autoSuspendedAt ? " (自动暂停)" : "");
+
+    var every = m.restartEverySec || 0;
+    f("bl1").textContent = "主动重启周期（" + fmtDur(every) + "）";
+    var b1 = f("bar1");
+    if (every > 0 && m.state === "running") {
+      var p1 = pct(every - (m.nextRestartInSec || 0), every);
+      b1.style.width = p1.toFixed(1) + "%";
+      b1.className = "bar-fill" + barClass(p1);
+      f("bt1").textContent = "还剩 " + fmtDur(m.nextRestartInSec);
+    } else {
+      b1.style.width = "0%";
+      b1.className = "bar-fill";
+      f("bt1").textContent = every > 0 ? "（未运行）" : "已关闭";
+    }
+
+    var b2 = f("bar2");
+    if (m.maxRunMinutes > 0 && m.runStartedAt) {
+      var total = m.maxRunMinutes * 60;
+      var p2 = pct(m.runAgeSec, total);
+      b2.style.width = p2.toFixed(1) + "%";
+      b2.className = "bar-fill" + barClass(p2);
+      f("bt2").textContent = "还剩 " + fmtDur(m.deadlineInSec);
+    } else {
+      b2.style.width = "0%";
+      b2.className = "bar-fill";
+      f("bt2").textContent = m.maxRunMinutes === -1 ? "无限制" : "–";
+    }
+
+    var notes = [];
+    if (m.cooldownUntil && m.cooldownInSec > 0) notes.push("⏳ 冷却中，还剩 " + fmtDur(m.cooldownInSec) + "，此前唤醒会被拒绝");
+    if (m.autoSuspendedAt) notes.push("机器是自己暂停的（空闲或 max-run），保活用 wake 唤醒");
+    if (m.abuseLock) notes.push("处于安全/滥用锁（" + (m.cooldownReason || "") + "），保活不触碰它，请先申诉解除");
+    if (m.lastError) notes.push("最近请求失败：" + m.lastError);
+    var note = f("note");
+    if (notes.length) {
+      note.style.display = "";
+      note.className = "callout" + (m.abuseLock || m.lastError ? " error" : (m.cooldownUntil && m.cooldownInSec > 0 ? " warn" : ""));
+      note.querySelector(".body").textContent = notes.join("　·　");
+    } else {
+      note.style.display = "none";
+    }
+  }
+
+  function renderMachines(ms) {
+    var sig = ms.map(function (m) { return m.machineId; }).join(",");
+    if (sig !== cardSig) {
+      cardSig = sig;
+      $("machines").innerHTML = ms.map(cardHtml).join("");
+    }
+    ms.forEach(updateCard);
+  }
+
+  /* ---------------- global line / banner ---------------- */
+  function renderGlobal(s) {
+    var extra = s.mock ? ' · <span style="color:var(--color-link-blue)">MOCK</span>' : "";
+    $("global-line").innerHTML = esc("管理 " + (s.machines ? s.machines.length : 0) + " 台 · " +
+      (s.restartMode === "pause" ? "pause 保留进程" : "stop 整机重启") +
+      " · 续租 " + fmtDur(s.intervalSec) + " · TTL " + s.ttlSeconds + "s") + extra;
+
+    var banner = $("banner");
+    if (s.fatalError) {
+      banner.textContent = "致命错误：" + s.fatalError + "（修正配置后重启程序）";
+      banner.classList.add("show");
+    } else {
+      banner.classList.remove("show");
+    }
+  }
+
+  /* ---------------- log ---------------- */
+  var lastSeq = 0, paused = false;
+  function renderLog(data) {
+    var box = $("log");
+    var stick = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    (data.entries || []).forEach(function (e) {
+      var line = document.createElement("div");
+      line.className = "line";
+      line.innerHTML = '<span class="ts">' + new Date(e.ts).toLocaleTimeString("zh-CN", { hour12: false }) + '</span> ' +
+        '<span class="lv lv-' + e.level + '">[' + e.level + ']</span> ' + esc(e.msg);
+      box.appendChild(line);
+    });
+    while (box.children.length > 800) box.removeChild(box.firstChild);
+    if (data.next != null && data.next > lastSeq) lastSeq = data.next;
+    if (stick && !paused) box.scrollTop = box.scrollHeight;
+  }
+  $("log-pause").onclick = function () {
+    paused = !paused;
+    this.textContent = paused ? "恢复滚动" : "暂停滚动";
+    if (!paused) $("log").scrollTop = $("log").scrollHeight;
+  };
+
+  /* ---------------- keys ---------------- */
+  function renderKeys(data) {
+    var box = $("key-list");
+    var keys = data.keys || [];
+    if (!keys.length) {
+      box.innerHTML = '<div class="key-note">还没有密钥。在下面粘贴一个 ibk_ 开头的 API key 即可开始。</div>';
+      return;
+    }
+    box.innerHTML = keys.map(function (k) {
+      return '<div class="key-row" data-kid="' + esc(k.id) + '">' +
+        '<span class="kname">' + esc(k.name) + '</span>' +
+        '<span class="kmask">' + esc(k.masked) + '</span>' +
+        '<span class="kcount">' + k.machineCount + ' 台机器' + (k.persistent ? '' : ' · 环境变量') + '</span>' +
+        (k.persistent ? '<button class="btn" data-kdel="' + esc(k.id) + '">删除</button>' : '') +
+        '</div>';
+    }).join("");
+  }
+  $("key-list").addEventListener("click", function (ev) {
+    var btn = ev.target.closest("button[data-kdel]");
+    if (!btn) return;
+    btn.disabled = true;
+    api("/api/keys/" + encodeURIComponent(btn.getAttribute("data-kdel")), { method: "DELETE" }).then(function (r) {
+      var el = $("key-result");
+      if (r.ok) { el.textContent = "✅ 已删除"; el.className = "action-result ok"; }
+      else { el.textContent = "❌ " + (r.error || "失败"); el.className = "action-result fail"; }
+      poll();
+    });
+  });
+  $("key-add").onclick = function () {
+    var name = $("key-name").value.trim();
+    var secret = $("key-secret").value.trim();
+    var el = $("key-result");
+    if (!secret) { el.textContent = "❌ 请粘贴 API key"; el.className = "action-result fail"; return; }
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = "验证中…";
+    el.textContent = "";
+    el.className = "action-result";
+    api("/api/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name, key: secret })
+    }).then(function (r) {
+      if (r.ok) {
+        el.textContent = "✅ 已添加：" + (r.key ? r.key.name : "");
+        el.className = "action-result ok";
+        $("key-secret").value = "";
+      } else {
+        el.textContent = "❌ " + (r.error || "失败");
+        el.className = "action-result fail";
+      }
+    }).catch(function (e) {
+      el.textContent = "❌ 请求失败：" + e;
+      el.className = "action-result fail";
+    }).finally(function () {
+      btn.disabled = false;
+      btn.textContent = "添加密钥";
+      poll();
+    });
+  };
+
+  /* ---------------- polling ---------------- */
+  function poll() {
+    api("/api/status").then(function (s) {
+      renderGlobal(s);
+      renderSidebar(s.machines || []);
+      renderMachines(s.machines || []);
+    }).catch(function () {
+      $("global-line").textContent = "连接失败，重试中…";
+    });
+    api("/api/keys").then(renderKeys).catch(function () {});
+    api("/api/log?since=" + lastSeq).then(renderLog).catch(function () {});
+  }
+  poll();
+  setInterval(poll, 2500);
+
+  /* ---------------- actions ---------------- */
+  document.getElementById("machines").addEventListener("click", function (ev) {
+    var btn = ev.target.closest("button[data-act]");
+    if (!btn || btn.disabled) return;
+    var card = btn.closest(".mcard");
+    var mid = card.getAttribute("data-mid");
+    var act = btn.getAttribute("data-act");
+    var result = card.querySelector('[data-f="result"]');
+
+    var btns = card.querySelectorAll("button[data-act]");
+    btns.forEach(function (b) { b.disabled = true; });
+    btn.textContent = "执行中…";
+    result.textContent = "";
+    result.className = "action-result";
+
+    api("/api/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: act, machine: mid })
+    }).then(function (r) {
+      if (r.ok) { result.textContent = "✅ " + (r.message || "完成"); result.classList.add("ok"); }
+      else { result.textContent = "❌ " + (r.error || "失败"); result.classList.add("fail"); }
+    }).catch(function (e) {
+      result.textContent = "❌ 请求失败：" + e;
+      result.classList.add("fail");
+    }).finally(function () {
+      btns.forEach(function (b) { b.disabled = false; });
+      card.querySelector('[data-act="keepalive"]').textContent = "立即保活";
+      card.querySelector('[data-act="restart"]').textContent = "立即重启";
+      poll();
+    });
+  });
+})();
+</script>
+</body>
+</html>
